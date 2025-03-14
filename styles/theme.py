@@ -1,0 +1,15 @@
+# Color scheme
+BG_COLOR = "#181818"
+SIDEBAR_COLOR = "#121212"
+BUTTON_COLOR = "#282828"
+ACCENT_COLOR = "#1DB954"
+HOVER_COLOR = "#1ED760"
+
+# Fonts
+FONT = ("Helvetica", 12)
+HEADER_FONT = ("Helvetica", 24, "bold")
+SMALL_FONT = ("Helvetica", 10)
+
+# Sizes
+SIDEBAR_WIDTH = 250
+CONTROL_HEIGHT = 150
