@@ -3,6 +3,7 @@ import os
 import pygame
 from tkinter import filedialog, messagebox, simpledialog
 from player import MusicPlayer
+import database  # Import the database module
 from components.sidebar import Sidebar
 from components.main_content import MainContent
 from components.bottom_controls import BottomControls

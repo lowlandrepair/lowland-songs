@@ -1,6 +1,8 @@
 import pygame
 import random
+import os
 from mutagen.mp3 import MP3
+import database  # Import the database module
 
 class MusicPlayer:
     def __init__(self):
@@ -15,12 +17,23 @@ class MusicPlayer:
         self.shuffle = False
         self.repeat = False      # True when repeat is enabled.
         self.song_length = 0     # Duration (in seconds) of the current song.
+        self.load_songs_from_db()  # Load songs from the database during initialization
+
+    def load_songs_from_db(self):
+        """Load songs from the SQLite database into the current playlist."""
+        songs = database.get_all_songs()
+        for title, artist, file_path in songs:
+            self.add_songs([file_path])  # Add the song file path to the current playlist
 
     def add_songs(self, songs):
         playlist = self.playlists[self.current_playlist_name]
         for song in songs:
             if song not in playlist:
                 playlist.append(song)
+                # Save the song to the database
+                title = os.path.basename(song)  # Extract title from file name
+                artist = "Unknown Artist"  # Placeholder for artist
+                database.add_song(title, artist, song)
 
     def load_current_song(self):
         playlist = self.playlists[self.current_playlist_name]
