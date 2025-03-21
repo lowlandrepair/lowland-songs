@@ -121,6 +121,7 @@ class LowlandUI:
         if new_time > self.player.song_length:
             new_time = self.player.song_length - 1
         self.bottom_controls.seek_to(new_time)
+        self.bottom_controls.current_time_label.config(text=self.bottom_controls.format_time(new_time))
 
     def skip_backward(self, event=None):
         elapsed = pygame.mixer.music.get_pos() / 1000.0
@@ -129,11 +130,11 @@ class LowlandUI:
         if new_time < 0:
             new_time = 0
         self.bottom_controls.seek_to(new_time)
+        self.bottom_controls.current_time_label.config(text=self.bottom_controls.format_time(new_time))
 
     def seek_to(self, pos):
         self.player.seek_to(pos)
         self.bottom_controls.current_offset = pos
         self.bottom_controls.progress_slider.set(pos)
-        
 
 

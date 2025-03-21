@@ -1,7 +1,13 @@
 import tkinter as tk
 from tkinter import simpledialog, messagebox, filedialog
+from PIL import Image, ImageTk
 import os
 from styles.theme import *
+from mutagen.easyid3 import EasyID3
+from mutagen.mp3 import MP3
+from mutagen.mp4 import MP4, MP4Cover  # Add this import
+import requests
+from io import BytesIO
 
 class MainContent:
     def __init__(self, master, player, play_song_callback):
@@ -16,6 +22,12 @@ class MainContent:
         self.content_frame = tk.Frame(self.frame, bg=BG_COLOR)
         self.content_frame.grid(row=0, column=0, sticky="nsew")
         self.current_view = None
+
+        # Create context menu
+        self.context_menu = tk.Menu(self.frame, tearoff=0)
+        self.context_menu.add_command(label="Remove", command=self.remove_selected_song)
+
+        self.selected_song_index = None
 
     def clear_content(self):
         for widget in self.content_frame.winfo_children():
@@ -34,12 +46,92 @@ class MainContent:
             for i, song in enumerate(playlist):
                 btn = tk.Button(grid_frame, text=os.path.basename(song), fg="white",
                                 bg=BUTTON_COLOR, font=FONT, relief="flat",
-                                command=lambda idx=i: self.play_song_callback(idx))
+                                command=lambda idx=i: self.show_song_detail(idx))
                 btn.grid(row=i // 3, column=i % 3, padx=10, pady=10, ipadx=10, ipady=10)
+                btn.bind("<Button-3>", lambda e, idx=i: self.show_context_menu(e, idx))
         else:
             info = tk.Label(self.content_frame, text="No songs available. Add songs in Your Library.",
                             fg="white", bg=BG_COLOR, font=FONT)
             info.pack(pady=20)
+
+    def show_context_menu(self, event, song_index):
+        self.selected_song_index = song_index
+        self.context_menu.post(event.x_root, event.y_root)
+
+    def remove_selected_song(self):
+        if self.selected_song_index is not None:
+            removed_song = self.player.remove_song(self.selected_song_index)
+            if removed_song:
+                self.show_home()
+
+    def show_song_detail(self, song_index):
+        self.clear_content()
+        song = self.player.playlists[self.player.current_playlist_name][song_index]
+        song_name = os.path.basename(song)
+        
+        # Display song name
+        song_label = tk.Label(self.content_frame, text=song_name, fg="white",
+                              bg=BG_COLOR, font=HEADER_FONT)
+        song_label.pack(pady=20)
+        
+        # Fetch and display cover photo and other metadata
+        self.display_song_metadata(song)
+        
+        # Play button
+        play_button = tk.Button(self.content_frame, text="Play", font=FONT,
+                                command=lambda: self.play_song_callback(song_index), bg=BUTTON_COLOR, fg="white",
+                                relief="flat", activebackground=ACCENT_COLOR)
+        play_button.pack(pady=10)
+
+    def seek(self, pos):
+        self.player.seek_to(int(pos))
+
+    def display_song_metadata(self, song_path):
+        try:
+            if song_path.endswith('.mp3'):
+                audio = MP3(song_path, ID3=EasyID3)
+                artist = audio.get('artist', ['Unknown Artist'])[0]
+                album = audio.get('album', ['Unknown Album'])[0]
+                title = audio.get('title', [os.path.basename(song_path)])[0]
+            elif song_path.endswith('.mp4'):
+                audio = MP4(song_path)
+                artist = audio.tags.get('\xa9ART', ['Unknown Artist'])[0]
+                album = audio.tags.get('\xa9alb', ['Unknown Album'])[0]
+                title = audio.tags.get('\xa9nam', [os.path.basename(song_path)])[0]
+            
+            # Display artist and album
+            artist_label = tk.Label(self.content_frame, text=f"Artist: {artist}", fg="white",
+                                    bg=BG_COLOR, font=FONT)
+            artist_label.pack(pady=5)
+            album_label = tk.Label(self.content_frame, text=f"Album: {album}", fg="white",
+                                   bg=BG_COLOR, font=FONT)
+            album_label.pack(pady=5)
+            
+            # Fetch cover photo from iTunes API
+            cover_photo = self.fetch_cover_photo(artist, album, title)
+            if cover_photo:
+                cover_image = Image.open(BytesIO(cover_photo))
+                cover_image = cover_image.resize((300, 300), Image.ANTIALIAS)
+                cover_photo = ImageTk.PhotoImage(cover_image)
+                cover_label = tk.Label(self.content_frame, image=cover_photo, bg=BG_COLOR)
+                cover_label.image = cover_photo  # Keep a reference to avoid garbage collection
+                cover_label.pack(pady=20)
+        except Exception as e:
+            print(f"Error fetching metadata: {e}")
+
+    def fetch_cover_photo(self, artist, album, title):
+        try:
+            query = f"{artist} {album} {title}".replace(" ", "+")
+            url = f"https://itunes.apple.com/search?term={query}&entity=song&limit=1"
+            response = requests.get(url)
+            data = response.json()
+            if data['results']:
+                cover_url = data['results'][0]['artworkUrl100'].replace("100x100", "600x600")
+                cover_response = requests.get(cover_url)
+                return cover_response.content
+        except Exception as e:
+            print(f"Error fetching cover photo: {e}")
+        return None
 
     def show_search(self):
         self.clear_content()
@@ -133,7 +225,7 @@ class MainContent:
 
     def add_songs(self):
         songs = filedialog.askopenfilenames(title="Select Songs",
-                                            filetypes=(("MP3 Files", "*.mp3"), ("WAV Files", "*.wav")))
+                                            filetypes=(("MP3 Files", "*.mp3"), ("MP4 Files", "*.mp4"), ("WAV Files", "*.wav")))
         if songs:
             self.player.add_songs(songs)
             self.refresh_library()

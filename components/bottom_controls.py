@@ -44,7 +44,7 @@ class BottomControls:
         self.current_time_label.grid(row=0, column=0, sticky="w")
         self.progress_slider = tk.Scale(timer_frame, from_=0, to=100, orient="horizontal",
                                         bg=BUTTON_COLOR, fg="white", troughcolor=ACCENT_COLOR,
-                                        length=300, showvalue=0, command=lambda v: None)
+                                        length=300, showvalue=0, command=self.progress_slider_released)
         self.progress_slider.grid(row=0, column=1, padx=5)
         self.total_time_label = tk.Label(timer_frame, text="0:00", fg="white", bg=BUTTON_COLOR, font=SMALL_FONT)
         self.total_time_label.grid(row=0, column=2, sticky="e")
@@ -90,8 +90,8 @@ class BottomControls:
                     self.play_callbacks['next']()
         self.master.after(200, self.update_progress)
 
-    def progress_slider_released(self, event):
-        pos = self.progress_slider.get()
+    def progress_slider_released(self, value):
+        pos = float(value)
         self.seek_to(pos)
 
     def seek_to(self, pos):

@@ -2,37 +2,38 @@ import pygame
 import random
 import os
 from mutagen.mp3 import MP3
-import database  # Import the database module
+from mutagen.mp4 import MP4
+import database
+from pydub import AudioSegment
+from pydub.playback import play
 
 class MusicPlayer:
     def __init__(self):
         pygame.mixer.init()
-        # Dictionary: playlist name -> list of song file paths.
         self.playlists = {}
         self.current_playlist_name = "Default"
-        self.playlists[self.current_playlist_name] = []  # Create a default playlist.
+        self.playlists[self.current_playlist_name] = []
         self.current_index = 0
-        self.playing = False     # True when a song is playing.
-        self.paused = False      # True when playback is paused.
+        self.playing = False
+        self.paused = False
         self.shuffle = False
-        self.repeat = False      # True when repeat is enabled.
-        self.song_length = 0     # Duration (in seconds) of the current song.
-        self.load_songs_from_db()  # Load songs from the database during initialization
+        self.repeat = False
+        self.song_length = 0
+        self.current_audio_segment = None  # Add this attribute
+        self.load_songs_from_db()
 
     def load_songs_from_db(self):
-        """Load songs from the SQLite database into the current playlist."""
         songs = database.get_all_songs()
         for title, artist, file_path in songs:
-            self.add_songs([file_path])  # Add the song file path to the current playlist
+            self.add_songs([file_path])
 
     def add_songs(self, songs):
         playlist = self.playlists[self.current_playlist_name]
         for song in songs:
             if song not in playlist:
                 playlist.append(song)
-                # Save the song to the database
-                title = os.path.basename(song)  # Extract title from file name
-                artist = "Unknown Artist"  # Placeholder for artist
+                title = os.path.basename(song)
+                artist = "Unknown Artist"
                 database.add_song(title, artist, song)
 
     def load_current_song(self):
@@ -40,18 +41,24 @@ class MusicPlayer:
         if not playlist:
             return None
         song = playlist[self.current_index]
-        pygame.mixer.music.load(song)
-        try:
+        if song.endswith('.mp3'):
+            pygame.mixer.music.load(song)
             audio = MP3(song)
             self.song_length = audio.info.length
-        except Exception:
+        elif song.endswith('.mp4'):
+            self.current_audio_segment = AudioSegment.from_file(song, format="mp4")
+            self.song_length = len(self.current_audio_segment) / 1000.0  # Convert to seconds
+        else:
             self.song_length = 0
         return song
 
     def play(self):
         song = self.load_current_song()
         if song:
-            pygame.mixer.music.play()
+            if song.endswith('.mp3'):
+                pygame.mixer.music.play()
+            elif song.endswith('.mp4'):
+                play(self.current_audio_segment)
             self.playing = True
             self.paused = False
         return song
@@ -78,9 +85,8 @@ class MusicPlayer:
             self.current_index = random.randint(0, len(playlist) - 1)
         else:
             self.current_index = (self.current_index + 1) % len(playlist)
-        
         if self.repeat and self.current_index == 0:
-            self.current_index = 0  # Stay on the first song if repeat is enabled.
+            self.current_index = 0
         return self.play()
 
     def prev_song(self):
@@ -106,3 +112,13 @@ class MusicPlayer:
             pygame.mixer.music.play(start=pos)
             if was_paused:
                 pygame.mixer.music.pause()
+
+    def remove_song(self, song_index):
+        playlist = self.playlists[self.current_playlist_name]
+        if 0 <= song_index < len(playlist):
+            removed_song = playlist.pop(song_index)
+            database.remove_song(removed_song)
+            if self.current_index >= len(playlist):
+                self.current_index = 0
+            return removed_song
+        return None
